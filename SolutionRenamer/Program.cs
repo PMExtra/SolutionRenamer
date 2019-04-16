@@ -11,6 +11,24 @@ namespace SolutionRenamer
 {
     public static class Program
     {
+        public static void CopyAll(DirectoryInfo source, DirectoryInfo target)
+        {
+            Directory.CreateDirectory(target.FullName);
+
+            foreach (var srcFile in source.GetFiles())
+            {
+                var targetPath = Path.Combine(target.FullName, srcFile.Name);
+                Console.WriteLine($@"Copying {targetPath}");
+                srcFile.CopyTo(targetPath, true);
+            }
+
+            foreach (var subDir in source.GetDirectories())
+            {
+                var subTarget = target.CreateSubdirectory(subDir.Name);
+                CopyAll(subDir, subTarget);
+            }
+        }
+
         public static void Main(string[] args)
         {
             Console.Title = "SolutionRenamer";
@@ -27,14 +45,8 @@ namespace SolutionRenamer
 
             var filter = fileExtensions.Split(',');
 
-            Console.WriteLine();
-            Console.WriteLine("Input your company name(MyCompanyName):");
-            var oldCompanyName = Console.ReadLine();
-            if (string.IsNullOrEmpty(oldCompanyName)) oldCompanyName = "MyCompanyName";
-
-            Console.WriteLine("Input your project name(AbpZeroTemplate):");
-            var oldProjectName = Console.ReadLine();
-            if (string.IsNullOrEmpty(oldProjectName)) oldProjectName = "AbpZeroTemplate";
+            const string oldCompanyName = "MyCompanyName";
+            const string oldProjectName = "AbpZeroTemplate";
 
             Console.WriteLine("Input your new company name:");
             var newCompanyName = Console.ReadLine();
@@ -43,9 +55,16 @@ namespace SolutionRenamer
             var newProjectName = Console.ReadLine();
             if (string.IsNullOrEmpty(newProjectName)) newProjectName = "NewAbpZeroTemplate";
 
-            Console.WriteLine("Input folder:");
+            Console.WriteLine("Output folder:");
             var rootDir = Console.ReadLine()?.Trim('"') ?? "";
             rootDir = Path.GetFullPath(rootDir).TrimEnd('\\');
+
+            Console.WriteLine("Git cleaning...");
+            Process.Start("git", "clean -Xdf")?.WaitForExit();
+
+            Console.WriteLine("Copying files...");
+            CopyAll(new DirectoryInfo(Path.Combine(Directory.GetCurrentDirectory(), "aspnet-core")), new DirectoryInfo(Path.Combine(rootDir, "aspnet-core")));
+            CopyAll(new DirectoryInfo(Path.Combine(Directory.GetCurrentDirectory(), "angular")), new DirectoryInfo(Path.Combine(rootDir, "angular")));
 
             Console.WriteLine("Renaming...");
 
