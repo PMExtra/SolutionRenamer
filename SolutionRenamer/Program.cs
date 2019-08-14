@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -11,6 +11,11 @@ namespace SolutionRenamer
 {
     public static class Program
     {
+        private static string[] _withBomFilter;
+        private static string[] _fileFilter;
+        private static Regex[] _pathIgnores;
+        private static Regex[] _fileIgnores;
+
         public static void CopyAll(DirectoryInfo source, DirectoryInfo target)
         {
             Directory.CreateDirectory(target.FullName);
@@ -40,10 +45,11 @@ namespace SolutionRenamer
 
             var configuration = builder.Build();
 
-            var ignorePatterns = configuration.GetSection("Ignores").GetChildren().Select(x => x.Value.TrimEnd('*').Replace("/", @"\")).ToArray();
+            var withBomExtensions = configuration["WithBomExtension"];
             var fileExtensions = configuration["FileExtension"];
-
-            var filter = fileExtensions.Split(',');
+            var ignorePatterns = configuration.GetSection("Ignores").GetChildren().Select(x => x.Value.TrimEnd('*').Replace("/", @"\")).ToArray();
+            _withBomFilter = withBomExtensions.Split(',').Select(x => x.Trim()).ToArray();
+            _fileFilter = fileExtensions.Split(',').Select(x => x.Trim()).ToArray();
 
             const string oldCompanyName = "MyCompanyName";
             const string oldProjectName = "AbpZeroTemplate";
@@ -68,7 +74,7 @@ namespace SolutionRenamer
 
             Console.WriteLine("Renaming...");
 
-            var pathIgnores = ignorePatterns.Select(pattern =>
+            _pathIgnores = ignorePatterns.Select(pattern =>
             {
                 pattern = $@"^{rootDir}\{pattern.TrimEnd('\\')}"
                               .Replace(@"\", @"\\")
@@ -80,7 +86,7 @@ namespace SolutionRenamer
                 return new Regex(pattern, RegexOptions.Compiled);
             }).ToArray();
 
-            var fileIgnores = ignorePatterns.Where(pattern => !pattern.EndsWith(@"\")).Select(pattern =>
+            _fileIgnores = ignorePatterns.Where(pattern => !pattern.EndsWith(@"\")).Select(pattern =>
             {
                 pattern = $@"^{rootDir}\{pattern}$"
                     .Replace(@"\", @"\\")
@@ -94,14 +100,14 @@ namespace SolutionRenamer
             var sp = new Stopwatch();
 
             sp.Start();
-            RenameAllDir(rootDir, oldCompanyName, oldProjectName, newCompanyName, newProjectName, pathIgnores);
+            RenameAllDir(rootDir, oldCompanyName, oldProjectName, newCompanyName, newProjectName);
             sp.Stop();
             var spDir = sp.ElapsedMilliseconds;
             Console.WriteLine("Directory rename complete! spend:" + sp.ElapsedMilliseconds);
 
             sp.Reset();
             sp.Start();
-            RenameAllFileNameAndContent(rootDir, oldCompanyName, oldProjectName, newCompanyName, newProjectName, pathIgnores, fileIgnores, filter);
+            RenameAllFileNameAndContent(rootDir, oldCompanyName, oldProjectName, newCompanyName, newProjectName);
             sp.Stop();
             var spFile = sp.ElapsedMilliseconds;
             Console.WriteLine("Filename and content rename complete! spend:" + sp.ElapsedMilliseconds);
@@ -118,15 +124,15 @@ namespace SolutionRenamer
         ///     递归重命名所有目录
         /// </summary>
         private static void RenameAllDir(string rootDir, string oldCompanyName, string oldProjectName,
-            string newCompanyName, string newProjectName, Regex[] ignores)
+            string newCompanyName, string newProjectName)
         {
             var allDir = Directory.GetDirectories(rootDir);
 
             foreach (var item in allDir)
             {
-                if (ignores.Any(ignore => ignore.IsMatch(item))) continue;
+                if (_pathIgnores.Any(ignore => ignore.IsMatch(item))) continue;
 
-                RenameAllDir(item, oldCompanyName, oldProjectName, newCompanyName, newProjectName, ignores);
+                RenameAllDir(item, oldCompanyName, oldProjectName, newCompanyName, newProjectName);
 
                 var directoryInfo = new DirectoryInfo(item);
                 if (directoryInfo.Name.Contains(oldCompanyName) || directoryInfo.Name.Contains(oldProjectName))
@@ -161,17 +167,17 @@ namespace SolutionRenamer
         ///     递归重命名所有文件名和文件内容
         /// </summary>
         private static void RenameAllFileNameAndContent(string rootDir, string oldCompanyName, string oldProjectName,
-            string newCompanyName, string newProjectName, Regex[] pathIgnores, Regex[] fileIgnores, string[] filter)
+            string newCompanyName, string newProjectName)
         {
-            if (pathIgnores.Any(ignore => ignore.IsMatch(rootDir))) return;
+            if (_pathIgnores.Any(ignore => ignore.IsMatch(rootDir))) return;
 
             //获取当前目录所有指定文件扩展名的文件
-            var files = new DirectoryInfo(rootDir).GetFiles().Where(m => filter.Any(f => f == m.Extension)).ToList();
+            var files = new DirectoryInfo(rootDir).GetFiles().Where(m => _fileFilter.Any(f => f == m.Extension)).ToList();
 
             //重命名当前目录文件和文件内容
             foreach (var item in files)
             {
-                if (fileIgnores.Any(ignore => ignore.IsMatch(item.FullName))) continue;
+                if (_fileIgnores.Any(ignore => ignore.IsMatch(item.FullName))) continue;
 
                 var text = File.ReadAllText(item.FullName, Encoding.UTF8);
                 text = text.Replace(oldCompanyName, newCompanyName);
@@ -188,7 +194,7 @@ namespace SolutionRenamer
                     newName = newName.Replace(oldProjectName, newProjectName);
                     Debug.Assert(item.DirectoryName != null, "item.DirectoryName != null");
                     var newFullName = Path.Combine(item.DirectoryName, newName);
-                    File.WriteAllText(newFullName, text, new UTF8Encoding(false));
+                    File.WriteAllText(newFullName, text, new UTF8Encoding(_withBomFilter.Contains(Path.GetExtension(newFullName))));
                     if (newFullName != item.FullName) File.Delete(item.FullName);
                 }
                 else
@@ -203,7 +209,7 @@ namespace SolutionRenamer
             var dirs = Directory.GetDirectories(rootDir);
             foreach (var dir in dirs)
             {
-                RenameAllFileNameAndContent(dir, oldCompanyName, oldProjectName, newCompanyName, newProjectName, pathIgnores, fileIgnores, filter);
+                RenameAllFileNameAndContent(dir, oldCompanyName, oldProjectName, newCompanyName, newProjectName);
             }
         }
 
