@@ -153,7 +153,7 @@ namespace SolutionRenamer
             if (_pathIgnores.Any(ignore => ignore.IsMatch(rootDir))) return;
 
             //获取当前目录所有指定文件扩展名的文件
-            var files = new DirectoryInfo(rootDir).GetFiles().Where(m => _fileFilter.Any(f => f == m.Extension)).ToList();
+            var files = new DirectoryInfo(rootDir).GetFiles().Where(m => _fileFilter.Contains(m.Extension)).ToList();
 
             //重命名当前目录文件和文件内容
             foreach (var item in files)
@@ -175,7 +175,7 @@ namespace SolutionRenamer
                     newName = newName.Replace(oldProjectName, newProjectName);
                     Debug.Assert(item.DirectoryName != null, "item.DirectoryName != null");
                     var newFullName = Path.Combine(item.DirectoryName, newName);
-                    File.WriteAllText(newFullName, text, new UTF8Encoding(_withBomFilter.Contains(Path.GetExtension(newFullName))));
+                    File.WriteAllText(newFullName, text, new UTF8Encoding(_withBomFilter.Contains(item.Extension)));
                     if (newFullName != item.FullName) File.Delete(item.FullName);
                 }
                 else
