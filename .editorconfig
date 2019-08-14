@@ -1,4 +1,4 @@
-# Editor configuration, see http://editorconfig.org
+# Editor configuration, see https://editorconfig.org
 root = true
 
 [*]
@@ -6,13 +6,21 @@ charset = utf-8
 indent_style = space
 indent_size = 4
 insert_final_newline = true
-max_line_length = 180
 trim_trailing_whitespace = true
+max_line_length = 180
 
-[*.md]
+[*.{html,css,scss,less,js,jsx,ts,tsx,json,xml,vue,wpy}]
+indent_size = 2
+
+[*.{config,props}]
+indent_size = 2
+
+[*.{cs,cshtml,csproj,sln}]
+charset = utf-8-bom
+
+[*.{diff,md}]
 max_line_length = off
 trim_trailing_whitespace = false
 
-# Indentation override for JSON
-[*.{js,json,css,xml,html,csproj}]
+[*.csproj]
 indent_size = 2
